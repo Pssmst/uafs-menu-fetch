@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8">
+		<style>
+			:root {
+				--color-main: white;
+				--color-background: hsla(0, 0%, 25%, 0.65);
+				--color-primary: hsl(175, 91%, 38%);
+				--color-border: var(--color-primary);
+
+				--color-period-background: hsla(0, 100%, 53%, 0.051);
+				--color-nutrition-border: hsla(207, 100%, 58%, 0.4);
+				--color-nutrition-background: hsla(0, 0%, 0%, 0.949);
+				--color-half-transparent: hsla(0, 0%, 0%, 0.5);
+				--color-category-border: hsla(0, 0%, 100%, 0.2);
+			}
+
+			body {
+				margin: 0;
+				padding: 20px;
+				font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+				color: var(--color-main);
+				overflow: hidden;
+				background: transparent;
+			}
+
+			.widget-card {
+				width: 435px;
+				max-height: 80vh;
+				overflow-y: auto;
+				display: flex;
+				flex-direction: column;
+				background: var(--color-background);
+				backdrop-filter: blur(12px);
+				border: 1px solid var(--color-border);
+				border-radius: 12px;
+				padding: 20px 24px;
+				box-shadow: 0 8px 32px var(--color-half-transparent);
+			}
+
+			h1 {
+				margin: 0 0 16px 0;
+				font-size: 1.4rem;
+				color: var(--color-primary);
+			}
+
+			#period-selector {
+				display: flex;
+				gap: 8px;
+				margin-bottom: 8px;
+				padding-bottom: 12px;
+			}
+			.period-button {
+				background: var(--color-period-background);
+				color: var(--color-main);
+				border: 1px solid var(--color-border);
+				padding: 6px 12px;
+				border-radius: 6px;
+				font-weight: 600;
+				cursor: pointer;
+				transition: all 0.2s ease;
+				flex: 1;
+			}
+			.period-button:hover, .period-button.active {
+				border-color: var(--color-primary);
+				color: var(--color-primary);
+			}
+			.period-menu {
+				flex: 1;
+				max-height: 60vh;
+				overflow-y: auto;
+				padding-right: 4px;
+				display: none;
+				flex-wrap: wrap;
+				overflow-x: hidden;
+				gap: 20px;
+			}
+			.period-menu.active {
+				display: flex;
+			}
+			.period-menu > * {
+				flex: 0 0 calc(50% - 10px);
+			}
+
+			.category {
+				margin-bottom: 16px;
+			}
+
+			.category-name {
+				font-size: 1rem;
+				font-weight: 600;
+				border-bottom: 1px solid var(--color-category-border);
+				padding-bottom: 4px;
+				margin-bottom: 6px;
+				color: var(--color-main);
+			}
+
+			.item {
+				font-size: 0.9rem;
+				opacity: 0.85;
+				margin-left: 8px;
+				line-height: 1.6;
+				position: relative;
+				cursor: help;
+			}
+			.item:hover {
+				color: var(--color-primary);
+				opacity: 1;
+			}
+
+			.nutrition-tooltip {
+				visibility: hidden;
+				opacity: 0;
+				position: absolute;
+				top: 100%; 
+				left: 15px; 
+				background: var(--color-nutrition-background);
+				padding: 8px 12px;
+				border-radius: 6px;
+				width: max-content;
+				min-width: 120px;
+				font-size: 0.8rem;
+				color: var(--color-main);
+				line-height: 1.4;
+				pointer-events: none;
+				transition: opacity 0.2s ease, transform 0.2s ease;
+				transform: translateY(-5px);
+				z-index: 100;
+				border: 1px solid var(--color-nutrition-border);
+				box-shadow: 0 4px 12px var(--color-half-transparent);
+			}
+
+			.item:hover .nutrition-tooltip {
+				visibility: visible;
+				opacity: 1;
+				transform: translateY(0);
+			}
+
+			.status-footer {
+				margin-top: 16px;
+				font-size: 0.75rem;
+				opacity: 0.5;
+				text-align: right;
+				padding-top: 8px;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="widget-card">
+			<h1>Campus Menu</h1>
+			<div id="menu-content">Loading today's menu...</div>
+			<div class="status-footer" id="last-updated"></div>
+		</div>
+
+		<script>
+			function newElement(tag, parent, options = {}) {
+				const { text = null, html = null, id = null, classes = null, style = {}, attributes = {} } = options;
+				const element = document.createElement(tag);
+
+				if (id) element.id = id;
+				if (text !== null) element.textContent = text;
+				else if (html !== null) element.innerHTML = html;
+
+				if (classes) {
+					const classList = Array.isArray(classes) ? classes : classes.split(' ').filter(Boolean);
+					element.classList.add(...classList);
+				}
+
+				Object.assign(element.style, style);
+				if (tag === 'button') element.style.outline = 'none';
+
+				for (const [attr, val] of Object.entries(attributes)) {
+					if (val !== null && val !== undefined) element.setAttribute(attr, val);
+				}
+
+				let parentElement = typeof parent === 'string' ? (parent === 'body' ? document.body : document.getElementById(parent)) : parent;
+				if (parentElement) parentElement.appendChild(element);
+				return element;
+			}
+
+			async function fetchMenu() {
+				const today = new Date().toISOString().split('T')[0];
+				const urlHeader = `https://apiv4.dineoncampus.com/locations/5f4936c257e0d8184670a220`;
+				const menuContent = document.getElementById('menu-content');
+				const lastUpdated = document.getElementById('last-updated');
+
+				try {
+					const response = await fetch(`${urlHeader}/periods/?date=${today}`);
+					if (!response.ok) throw new Error(`HTTP ${response.status}`);
+					const { periods = [] } = await response.json();
+
+					if (periods.length === 0) {
+						menuContent.textContent = 'No menu listed for today.';
+						return;
+					}
+
+					// Clear loading text and set up our layout containers
+					menuContent.innerHTML = '';
+					const periodSelector = newElement('div', menuContent, { id: 'period-selector' });
+					const menusContainer = newElement('div', menuContent, { id: 'menus-container' });
+
+					let isFirstPeriod = true;
+
+					for (const period of periods) {
+						const menuResponse = await fetch(`${urlHeader}/menu?date=${today}&period=${period.id}`);
+						if (!menuResponse.ok) continue;
+
+						const data = await menuResponse.json();
+						const categories = data.menu?.period?.categories || data.period?.categories || [];
+
+						// Create the tab button for this period
+						const btnClasses = isFirstPeriod ? ['period-button', 'active'] : ['period-button'];
+						const btn = newElement('button', periodSelector, { 
+							classes: btnClasses, 
+							text: period.name 
+						});
+
+						// Create the hidden menu container for this period
+						const menuClasses = isFirstPeriod ? ['period-menu', 'active'] : ['period-menu'];
+						const periodMenu = newElement('div', menusContainer, { 
+							classes: menuClasses 
+						});
+
+						// Tab switching logic
+						const activateTab = () => {
+							document.querySelectorAll('.period-button').forEach(b => b.classList.remove('active'));
+							document.querySelectorAll('.period-menu').forEach(m => m.classList.remove('active'));
+							btn.classList.add('active');
+							periodMenu.classList.add('active');
+						};
+						btn.addEventListener('click', activateTab);
+						btn.addEventListener('mouseenter', activateTab);
+
+						// Populate categories and items
+						for (let category of categories) {
+							if (category.name == "Milk & Condiments") continue;
+							const categoryDiv = newElement('div', periodMenu, { classes: 'category' });
+							newElement('div', categoryDiv, { classes: 'category-name', text: category.name });
+
+							if (category.items) {
+								category.items.forEach(item => {
+									const itemDiv = newElement('div', categoryDiv, { 
+										classes: 'item', 
+										text: `• ${item.name}` 
+									});
+
+									// Get nutritional info for the tooltip
+									let nutritionText = `<strong>${item.name}</strong><br>`;
+									nutritionText += `Calories: ${item.calories || 'N/A'}`;
+									if (item.portion) {
+										nutritionText += `<br>Portion: ${item.portion}`;
+									}
+
+									// Create the hidden tooltip inside the item
+									newElement('div', itemDiv, {
+										classes: 'nutrition-tooltip',
+										html: nutritionText
+									});
+								});
+							}
+						}
+						isFirstPeriod = false;
+					}
+
+					const now = new Date();
+					lastUpdated.textContent = `Updated: ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+				} catch (err) {
+					console.error('Menu fetch error:', err);
+					menuContent.textContent = 'Unable to refresh menu.';
+				}
+			}
+
+			fetchMenu();
+			setInterval(fetchMenu, 5 * 60 * 1000);
+		</script>
+	</body>
+</html>
