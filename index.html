@@ -266,7 +266,8 @@
 					const now = new Date();
 					lastUpdated.textContent = `Updated: ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 					return false;
-				} catch (err) {
+				}
+				catch (err) {
 					console.error('Menu fetch error:', err);
 					menuContent.textContent = 'Unable to refresh menu.';
 				}
@@ -277,11 +278,11 @@
 				const hasError = await fetchMenu();
 				
 				if (hasError) {
-					// If the network or API failed, try again quickly (every 10 seconds)
-					setInterval(fetchMenu, 10000); 
+					// If the network or API failed, try again quickly (every 5 seconds)
+					setInterval(fetchMenu, 5 * 1000); 
 				} else {
-					// If successful, update the menu at a standard pace (every 15 minutes)
-					setInterval(fetchMenu, 15 * 60 * 1000); 
+					// If successful, update the menu at a standard pace (every 30 minutes)
+					setInterval(fetchMenu, 30 * 60*1000); 
 				}
 			}
 
