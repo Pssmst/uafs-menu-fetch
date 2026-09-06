@@ -247,7 +247,7 @@
 
 									// Get nutritional info for the tooltip
 									let nutritionText = `<strong>${item.name}</strong><br>`;
-									nutritionText += `Calories: ${item.calories || 'N/A'}`;
+									nutritionText += `Calories: ${item.calories}`;
 									if (item.portion) {
 										nutritionText += `<br>Portion: ${item.portion}`;
 									}
@@ -265,14 +265,27 @@
 
 					const now = new Date();
 					lastUpdated.textContent = `Updated: ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+					return false;
 				} catch (err) {
 					console.error('Menu fetch error:', err);
 					menuContent.textContent = 'Unable to refresh menu.';
 				}
+				return true;
 			}
 
-			fetchMenu();
-			setInterval(fetchMenu, 60 * 60 * 1000);
+			async function initMenuTracker() {
+				const hasError = await fetchMenu();
+				
+				if (hasError) {
+					// If the network or API failed, try again quickly (every 10 seconds)
+					setInterval(fetchMenu, 10000); 
+				} else {
+					// If successful, update the menu at a standard pace (every 15 minutes)
+					setInterval(fetchMenu, 15 * 60 * 1000); 
+				}
+			}
+
+			initMenuTracker();
 		</script>
 	</body>
 </html>
